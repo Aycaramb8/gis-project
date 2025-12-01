@@ -34,6 +34,7 @@ library(scales) |> suppressPackageStartupMessages()
 library(grid) |> suppressPackageStartupMessages()
 library(spatstat.random) |> suppressPackageStartupMessages()
 library(ggplot2) |> suppressPackageStartupMessages()
+library(plotly) |> suppressPackageStartupMessages()
 ```
 
 ## Introduction
@@ -394,7 +395,7 @@ ggplot(as.data.frame(ev_points), aes(x, y)) +
   geom_point(alpha = 0.05, size = 0.5)
 ```
 
-**Unweighted EV Intensity (PPP):**
+**ZIP Intensity :**
 
 ```{r}
 # Estimated intensity functions for zip
@@ -402,7 +403,7 @@ ev_int <- density(ev_ppp)
 plot(ev_int, main = "Unweighted EV Intensity (PPP)")
 ```
 
-**EV-Weighted Intensity (Vehicles as Marks):**
+**EV-Weighted Intensity:**
 
 ```{r}
 # Estimated intensity functions for ev count
@@ -455,7 +456,7 @@ inc_int_w <- density(inc_ppp, weights = inc_ppp$marks)
 plot(inc_int_w, main = "Income-Weighted Intensity")
 ```
 
-## EV counts by Population Density
+## Region Split: Population Density
 
 ```{r}
 num_regions <- 3
@@ -492,7 +493,7 @@ pop_areas <- tess(image = pop_cut_im)
 plot(pop_areas)
 ```
 
-## EV counts by Income Density
+## Region Split: Income Density
 
 ```{r}
 num_regions <- 3
@@ -531,7 +532,76 @@ inc_areas <- tess(image = inc_cut_im)
 plot(inc_areas)
 ```
 
+## Simple Regression: EV Count vs Population Density
+
+```{r}
+plot_df <- zip_centroids %>%
+  filter(!ZIP.Code %in% c(90301, 91208, 91501, 91321, 90504, 90262)) %>%
+  mutate(pop_density = Population / Area) %>%
+  select(ZIP.Code, Vehicles, pop_density, MeanIncome)
+
+# Simple regression
+p1 <- ggplot(plot_df, aes(x = pop_density, y = Vehicles, label = ZIP.Code)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    title = "EV Count vs Population Density",
+    x = "Population Density",
+    y = "EV Count"
+  ) +
+  theme_classic()
+
+ggplotly(p1, tooltip = c("label", "x", "y"))
+```
+
+After removing the outliers(in order to closely examine the relationship):
+
+```{r}
+# Simple regression with no outlier
+p1 <- ggplot(plot_df, aes(x = pop_density, y = Vehicles, label = ZIP.Code)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    title = "EV Count vs Population Density",
+    x = "Population Density",
+    y = "EV Count"
+  ) +
+  theme_classic()
+
+ggplotly(p1, tooltip = c("label", "x", "y"))
+```
+
+There is no clear realtionship between EV count and population.
+
+## Simple Regression: EV Count vs Mean Income
+
+```{r}
+p2 <- ggplot(plot_df, aes(x = MeanIncome, y = Vehicles, label = ZIP.Code)) +
+  geom_point(color = "darkgreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  labs(
+    title = "EV Count vs Mean Income",
+    x = "Mean Household Income ($)",
+    y = "EV Count"
+  ) +
+  theme_classic()
+
+ggplotly(p2, tooltip = c("label", "x", "y"))
+```
+
+It seems that EV counts in LA is positively correlated with Mean Income
+
 ## Monte Carlo Simulation
+
+To formally test the hypothesis, I constructed two null models:
+
+(1) a population-weighted null in which EVs were simulated proportionally to residential density; and
+
+(2) an income-weighted null in which EVs were simulated according to neighborhood income levels.
+
+For each null, I generated 999 Monte Carlo realizations. The simulations produced distributions of EV counts within each region (Low, Medium, High population or income), allowing direct comparison between the observed EV counts and the values expected under each null model.
+
+**For Population Density:**
 
 ```{r}
 gen_sims_ppp <- function(num_sims) {
@@ -573,6 +643,8 @@ colnames(full_count_df) <- region_labels
 # Preview the simulated counts
 full_count_df |> head()
 ```
+
+**For Mean Income:**
 
 ```{r}
 gen_sims_inc <- function(num_sims) {
@@ -624,7 +696,7 @@ ggplot(full_count_df, aes(x = High)) +
   ) +
   theme_classic() +
   labs(
-    title = "Monte Carlo Simulation vs Observed EV Count in High-Population Region",
+    title = "Monte Carlo vs Observed EV Count in High-Population Region",
     x = "Simulated EV Counts (High Region)",
     y = "Density"
   )
@@ -634,7 +706,7 @@ ggplot(full_count_df, aes(x = High)) +
 more_extreme_df <- mc_df[mc_df$High >= real_counts_named["High"], ]
 
 prop_more_extreme <- nrow(more_extreme_df) / nrow(mc_df)
-
+print("p-value:")
 prop_more_extreme
 ```
 
@@ -672,5 +744,24 @@ ggplot(full_inc_df, aes(x = High)) +
 ```{r}
 more_extreme_inc_df <- mc_inc_df[mc_inc_df$High <= real_inc_counts_named["High"], ]
 prop_more_extreme_inc <- nrow(more_extreme_inc_df) / nrow(mc_inc_df)
+print("p-value:")
 prop_more_extreme_inc
-``` 
+```
+
+Comparing the observed EV intensity surface with the simulation envelopes revealed that EV concentrations in high-income areas exceeded the 95% Monte Carlo envelope. In contrast, the observed EV distribution was largely consistent with the population-weighted null model, suggesting that population density alone does not fully explain EV spatial patterns. These results jointly suggest that income exerts a stronger influence on EV adoption than population density, and that EV locations exhibit meaningful clustering behavior at local scales.
+
+## Conclusion
+
+This project investigated the spatial distribution of EV ownership using exploratory visualizations, intensity estimation, regression analysis, and Monte Carlo hypothesis testing. The results consistently show that EVs are spatially clustered and disproportionately concentrated in wealthy neighborhoods. Population density explains part of the spatial structure, but income explains significantly more, with observed patterns falling outside the 95% envelopes of the income-weighted null model. These findings support the hypothesis that socio-economic factors—particularly household income—play a central role in shaping the spatial adoption of electric vehicles.
+
+## Next Steps...
+
+While the analysis provides strong evidence that EV ownership is influenced by income-driven first-order intensity and local clustering, several extensions would strengthen and refine these conclusions.
+
+First, improving the underlying dataset would allow for a more robust assessment—particularly by incorporating more precise EV registration counts, ZIP-level household characteristics, or updated measures of charging infrastructure availability. Many ZIP codes contain incomplete EV information, so targeted data collection or integration with more accurate administrative records would reduce uncertainty in the intensity estimation. 
+
+Second, incorporating additional covariates such as housing type, percentage of single-family homes, and proximity to public chargers would help disentangle whether income effects are direct or mediated through built-environment factors. 
+
+Third, repeating the analysis across multiple years would allow for a spatio-temporal view of EV adoption, enabling tests of how clustering evolves as diffusion accelerates. 
+
+Together, these steps would help validate the current findings and support a more comprehensive understanding of how and why EV adoption clusters spatially.
