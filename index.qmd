@@ -752,6 +752,8 @@ Comparing the observed EV intensity surface with the simulation envelopes reveal
 
 ## Conclusion
 
+**Hypothesis Examined:** EV ownership is spatially clustered and higher near high-income neighborhoods in the LA metropolitan area, beyond what would be expected under population-weighted randomness.
+
 This project investigated the spatial distribution of EV ownership using exploratory visualizations, intensity estimation, regression analysis, and Monte Carlo hypothesis testing. The results consistently show that EVs are spatially clustered and disproportionately concentrated in wealthy neighborhoods. Population density explains part of the spatial structure, but income explains significantly more, with observed patterns falling outside the 95% envelopes of the income-weighted null model. These findings support the hypothesis that socio-economic factors—particularly household income—play a central role in shaping the spatial adoption of electric vehicles.
 
 ## Next Steps...
